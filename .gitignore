@@ -3,3 +3,4 @@
 .idea/
 .DS_Store
 Scarb.lock
+.snfoundry_cache

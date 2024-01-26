@@ -1,2 +1,7 @@
-mod ERC4626;
-mod MockERC20;
+mod erc4626;
+#[cfg(test)]
+mod tests;
+mod utils;
+mod mocks {
+    mod ERC20;
+}
