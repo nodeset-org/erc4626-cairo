@@ -1,6 +1,8 @@
 #[starknet::contract]
 mod ERC4626 {
-    use erc4626::erc4626::interface::{IERC4626, IERC4626Additional, IERC4626Snake, IERC4626Camel};
+    use erc4626::erc4626::interface::{
+        IERC4626, IERC4626Additional, IERC4626Snake, IERC4626Camel, IERC4626Metadata
+    };
     use erc4626::utils::{pow_256};
     use integer::BoundedU256;
     use openzeppelin::token::erc20::interface::{
@@ -11,10 +13,8 @@ mod ERC4626 {
     use starknet::{ContractAddress, get_caller_address, get_contract_address};
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
-    #[abi(embed_v0)]
-    impl ERC20MetadataImpl = ERC20Component::ERC20MetadataImpl<ContractState>;
     impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
-
+    impl ERC20MetadataImpl = ERC20Component::ERC20MetadataImpl<ContractState>;
 
     #[storage]
     struct Storage {
@@ -176,11 +176,22 @@ mod ERC4626 {
         }
     }
 
+
+    #[abi(embed_v0)]
+    impl MetadataEntrypoints of IERC4626Metadata<ContractState> {
+        fn name(self: @ContractState) -> felt252 {
+            self.erc20.name()
+        }
+        fn symbol(self: @ContractState) -> felt252 {
+            self.erc20.symbol()
+        }
+        fn decimals(self: @ContractState) -> u8 {
+            self.underlying_decimals.read() + self._decimals_offset()
+        }
+    }
+
     #[abi(embed_v0)]
     impl SnakeEntrypoints of IERC4626Snake<ContractState> {
-        // fn decimals(self: @TState) -> u8 {
-        //     self.erc20.decimals() + self._decimals_offset();
-        // }
         fn total_supply(self: @ContractState) -> u256 {
             self.erc20.total_supply()
         }
@@ -236,7 +247,7 @@ mod ERC4626 {
     impl InternalImpl of InternalImplTrait {
         fn _convert_to_assets(self: @ContractState, shares: u256, round: bool) -> u256 {
             let total_assets = self.total_assets() + 1;
-            let total_shares = self.total_supply() + pow_256(10, 8);
+            let total_shares = self.total_supply() + pow_256(10, self._decimals_offset());
             let assets = shares * total_assets / total_shares;
             if round && ((assets * total_shares) / total_assets < shares) {
                 assets + 1
@@ -247,7 +258,7 @@ mod ERC4626 {
 
         fn _convert_to_shares(self: @ContractState, assets: u256, round: bool) -> u256 {
             let total_assets = self.total_assets() + 1;
-            let total_shares = self.total_supply() + pow_256(10, 8);
+            let total_shares = self.total_supply() + pow_256(10, self._decimals_offset());
             let share = assets * total_shares / total_assets;
             if round && ((share * total_assets) / total_shares < assets) {
                 share + 1

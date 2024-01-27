@@ -61,6 +61,14 @@ trait IERC4626<TState> {
     ) -> u256;
 }
 
+
+#[starknet::interface]
+trait IERC4626Metadata<TState> {
+    fn name(self: @TState) -> felt252;
+    fn symbol(self: @TState) -> felt252;
+    fn decimals(self: @TState) -> u8;
+}
+
 #[starknet::interface]
 trait IERC4626Camel<TState> {
     fn totalSupply(self: @TState) -> u256;
@@ -72,7 +80,6 @@ trait IERC4626Camel<TState> {
 
 #[starknet::interface]
 trait IERC4626Snake<TState> {
-    // fn decimals(self: @TState) -> u8;
     fn total_supply(self: @TState) -> u256;
     fn balance_of(self: @TState, account: ContractAddress) -> u256;
     fn allowance(self: @TState, owner: ContractAddress, spender: ContractAddress) -> u256;

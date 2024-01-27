@@ -43,9 +43,9 @@ mod ERC20Token {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, recipient: ContractAddress) {
+    fn constructor(ref self: ContractState, recipient: ContractAddress, initial_supply: u256) {
         self.erc20.initializer('Mock', 'MCK');
-        self.erc20._mint(recipient, 1000000000000000000000000000000);
+        self.erc20._mint(recipient, initial_supply);
     }
 
     #[generate_trait]

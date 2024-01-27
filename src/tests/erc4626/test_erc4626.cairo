@@ -1,3 +1,4 @@
+use core::traits::TryInto;
 use debug::PrintTrait;
 use erc4626::erc4626::{IERC4626Dispatcher, IERC4626DispatcherTrait};
 use erc4626::utils::{pow_256};
@@ -12,6 +13,18 @@ fn OWNER() -> ContractAddress {
     'owner'.try_into().unwrap()
 }
 
+fn ALICE() -> ContractAddress {
+    'alice'.try_into().unwrap()
+}
+
+fn BOB() -> ContractAddress {
+    'bob'.try_into().unwrap()
+}
+
+fn INITIAL_SUPPLY() -> u256 {
+    1000000000000000000000000000000
+}
+
 fn TOKEN_ADDRESS() -> ContractAddress {
     'token_address'.try_into().unwrap()
 }
@@ -24,6 +37,7 @@ fn deploy_token() -> (ERC20ABIDispatcher, ContractAddress) {
     let token = declare('ERC20Token');
     let mut calldata = Default::default();
     Serde::serialize(@OWNER(), ref calldata);
+    Serde::serialize(@INITIAL_SUPPLY(), ref calldata);
 
     let address = token.deploy_at(@calldata, TOKEN_ADDRESS()).unwrap();
     let dispatcher = ERC20ABIDispatcher { contract_address: address, };
@@ -102,99 +116,88 @@ fn preview_withdraw() {
     let (asset, vault) = deploy_contract();
     assert(vault.preview_redeem(pow_256(10, 10)) == 100, 'invalid preview_withdraw');
 }
-// #[test]
-// fn deposit() {
-//     let (asset, dispatcher, vault) = deploy_contract();
-//     let owner = contract_address_const::<0x42>();
-//     let erc20dispatcher = ERC20ABIDispatcher { contract_address: asset };
-//     let amount = erc20dispatcher.balance_of(get_contract_address());
-//     erc20dispatcher.transfer(owner, amount);
-//     start_prank(asset, owner);
-//     erc20dispatcher.approve(vault, BoundedU256::max());
-//     stop_prank(asset);
-//     start_prank(vault, owner);
-//     assert(dispatcher.deposit(amount, owner) == amount, 'invalid shares');
-//     assert(dispatcher.balance_of(owner) == amount, 'invalid balance');
-// }
-// #[test]
-// fn max_redeem() {
-//     let (asset, dispatcher, vault) = deploy_contract();
-//     assert(dispatcher.max_redeem(get_contract_address()) == 0, 'invalid initial max redeem');
-//     let owner = contract_address_const::<0x42>();
-//     let erc20dispatcher = ERC20ABIDispatcher { contract_address: asset };
-//     let amount = erc20dispatcher.balance_of(get_contract_address());
-//     erc20dispatcher.transfer(owner, amount);
-//     start_prank(asset, owner);
-//     erc20dispatcher.approve(vault, BoundedU256::max());
-//     stop_prank(asset);
-//     start_prank(vault, owner);
-//     dispatcher.deposit(amount, owner);
-//     assert(dispatcher.max_redeem(owner) == amount, 'invalid max redeem');
-// }
+#[test]
+fn test_deposit() {
+    let (asset, vault) = deploy_contract();
+    let amount = asset.balanceOf(OWNER());
+    start_prank(CheatTarget::One(asset.contract_address), OWNER());
+    asset.approve(vault.contract_address, amount);
+    stop_prank(CheatTarget::One(asset.contract_address));
+    let result = vault.preview_deposit(amount);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    assert(vault.deposit(amount, OWNER()) == result, 'invalid shares');
+    assert(vault.balanceOf(OWNER()) == result, 'invalid balance');
+}
 
-// #[test]
-// fn max_withdraw() {
-//     let (asset, dispatcher, vault) = deploy_contract();
-//     assert(dispatcher.max_withdraw(get_contract_address()) == 0, 'invalid initial max withdraw');
-//     let owner = contract_address_const::<0x42>();
-//     let erc20dispatcher = ERC20ABIDispatcher { contract_address: asset };
-//     let amount = erc20dispatcher.balance_of(get_contract_address());
-//     erc20dispatcher.transfer(owner, amount);
-//     start_prank(asset, owner);
-//     erc20dispatcher.approve(vault, BoundedU256::max());
-//     stop_prank(asset);
-//     start_prank(vault, owner);
-//     dispatcher.deposit(amount, owner);
-//     assert(dispatcher.max_withdraw(owner) == amount, 'invalid max withdraw');
-// }
+#[test]
+fn test_max_redeem() {
+    let (asset, vault) = deploy_contract();
+    let amount = asset.balanceOf(OWNER());
+    start_prank(CheatTarget::One(asset.contract_address), OWNER());
+    asset.approve(vault.contract_address, amount);
+    stop_prank(CheatTarget::One(asset.contract_address));
+    let result = vault.preview_deposit(amount);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let shares = vault.deposit(amount, OWNER());
+    assert(vault.max_redeem(OWNER()) == shares, 'invalid max redeem');
+}
+#[test]
+fn max_withdraw() {
+    let (asset, vault) = deploy_contract();
+    let amount = asset.balanceOf(OWNER());
+    start_prank(CheatTarget::One(asset.contract_address), OWNER());
+    asset.approve(vault.contract_address, amount);
+    stop_prank(CheatTarget::One(asset.contract_address));
+    let result = vault.preview_deposit(amount);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let shares = vault.deposit(amount, OWNER());
+    let value = vault.convert_to_assets(vault.balanceOf(OWNER()));
+    assert(vault.max_withdraw(OWNER()) == value, 'invalid max withdraw');
+}
+#[test]
+fn mint() {
+    let (asset, vault) = deploy_contract();
+    let amount = asset.balanceOf(OWNER());
+    start_prank(CheatTarget::One(asset.contract_address), OWNER());
+    asset.approve(vault.contract_address, amount);
+    stop_prank(CheatTarget::One(asset.contract_address));
+    let result = vault.preview_deposit(amount);
+    let minted = vault.preview_mint(1);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let shares = vault.mint(1, OWNER());
+    assert(vault.balanceOf(OWNER()) == minted, 'invalid mint shares');
+}
+#[test]
+fn test_redeem() {
+    let (asset, vault) = deploy_contract();
+    let amount = asset.balanceOf(OWNER());
+    start_prank(CheatTarget::One(asset.contract_address), OWNER());
+    asset.approve(vault.contract_address, amount);
+    stop_prank(CheatTarget::One(asset.contract_address));
+    let result = vault.preview_deposit(amount);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let shares = vault.deposit(amount, OWNER());
+    assert(vault.balanceOf(OWNER()) == shares, 'invalid balance before');
+    let preview = vault.preview_redeem(shares);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let redeemed = vault.redeem(shares, OWNER(), OWNER());
+    assert(vault.balanceOf(OWNER()) == 0, 'invalid balance after');
+}
 
-// #[test]
-// fn mint() {
-//     let (asset, dispatcher, vault) = deploy_contract();
-//     let owner = contract_address_const::<0x42>();
-//     let erc20dispatcher = ERC20ABIDispatcher { contract_address: asset };
-//     let amount = erc20dispatcher.balance_of(get_contract_address());
-//     erc20dispatcher.transfer(owner, amount);
-//     start_prank(asset, owner);
-//     erc20dispatcher.approve(vault, BoundedU256::max());
-//     stop_prank(asset);
-//     start_prank(vault, owner);
-//     assert(dispatcher.mint(amount, owner) == amount, 'invalid assets');
-//     assert(dispatcher.balance_of(owner) == amount, 'invalid balance');
-// }
+#[test]
+fn test_withdraw() {
+    let (asset, vault) = deploy_contract();
+    let amount = asset.balanceOf(OWNER());
+    start_prank(CheatTarget::One(asset.contract_address), OWNER());
+    asset.approve(vault.contract_address, amount);
+    stop_prank(CheatTarget::One(asset.contract_address));
+    let result = vault.preview_deposit(amount);
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let shares = vault.deposit(amount, OWNER());
+    assert(vault.balanceOf(OWNER()) == shares, 'invalid balance before');
 
-// #[test]
-// fn redeem() {
-//     let (asset, dispatcher, vault) = deploy_contract();
-//     let owner = contract_address_const::<0x42>();
-//     let erc20dispatcher = ERC20ABIDispatcher { contract_address: asset };
-//     let amount = erc20dispatcher.balance_of(get_contract_address());
-//     erc20dispatcher.transfer(owner, amount);
-//     start_prank(asset, owner);
-//     erc20dispatcher.approve(vault, BoundedU256::max());
-//     stop_prank(asset);
-//     start_prank(vault, owner);
-//     dispatcher.deposit(amount, owner);
-//     assert(dispatcher.balance_of(owner) == amount, 'invalid balance');
-//     assert(dispatcher.redeem(amount, owner, owner) == amount, 'invalid assets');
-//     assert(dispatcher.balance_of(owner) == 0, 'invalid final balance');
-// }
-
-// #[test]
-// fn withdraw() {
-//     let (asset, dispatcher, vault) = deploy_contract();
-//     let owner = contract_address_const::<0x42>();
-//     let erc20dispatcher = ERC20ABIDispatcher { contract_address: asset };
-//     let amount = erc20dispatcher.balance_of(get_contract_address());
-//     erc20dispatcher.transfer(owner, amount);
-//     start_prank(asset, owner);
-//     erc20dispatcher.approve(vault, BoundedU256::max());
-//     stop_prank(asset);
-//     start_prank(vault, owner);
-//     dispatcher.deposit(amount, owner);
-//     assert(dispatcher.balance_of(owner) == amount, 'invalid balance');
-//     assert(dispatcher.withdraw(amount, owner, owner) == amount, 'invalid shares');
-//     assert(dispatcher.balance_of(owner) == 0, 'invalid final balance');
-// }
-
+    start_prank(CheatTarget::One(vault.contract_address), OWNER());
+    let shares = vault.withdraw(amount, OWNER(), OWNER());
+    assert(vault.balanceOf(OWNER()) == 0, 'invalid balance after');
+}
 
