@@ -3,17 +3,13 @@ name = "erc4626"
 version = "0.1.0"
 
 [dependencies]
-openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git"}
-snforge_std = { git = "https://github.com/foundry-rs/starknet-foundry", tag = "v0.14.0" }
-starknet = "2.4.3"
+starknet = ">=2.8.0"
+
+[dev-dependencies]
+snforge_std = ">=0.30.0"
 
 [[target.starknet-contract]]
 sierra = true
-casm = true
-allowed-libfuncs-list.name = "experimental"
 
-[cairo]
-sierra-replace-ids = true
-
-[tool.fmt]
-sort-module-level-items = true
+[lib]
+sierra = true
